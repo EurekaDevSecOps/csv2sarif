@@ -1,0 +1,34 @@
+{
+  "name": "csv2sarif",
+  "version": "1.0.0",
+  "description": "CSV to SARIF converter",
+  "homepage": "https://github.com/EurekaDevSecOps/csv2sarif",
+  "keywords": [
+    "CSV",
+    "SARIF",
+    "convert",
+    "converter",
+    "transformer",
+    "tool"
+  ],
+  "license": "GPL-3.0-only",
+  "author": "Sasa Djolic <s.djolic@eurekadevsecops.com> (https://www.linkedin.com/in/sasadjolic/)",
+  "type": "commonjs",
+  "main": "cli.js",
+  "bin": {
+    "csv2sarif": "cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EurekaDevSecOps/csv2sarif.git"
+  },
+  "dependencies": {
+    "@persistr/clif": "^1.11.1",
+    "csv-parse": "^6.1.0",
+    "edge.js": "^6.3.0",
+    "json5": "^2.2.3"
+  }
+}
