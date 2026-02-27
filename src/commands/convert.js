@@ -17,6 +17,8 @@ module.exports = {
     { name: 'OUTPUT', short: 'o', long: 'output', type: 'string', description: 'output file name' },
     { name: 'PROFILE', short: 'p', long: 'profile', type: 'string', description: 'built-in profile to use for the conversion' },
     { name: 'TEMPLATE', short: 't', long: 'template', type: 'string', description: 'custom template to use for the conversion' },
+    { name: 'REPOSITORY', short: 'r', long: 'repository', type: 'string', description: 'repository name in owner/repository_name format' },
+    { name: 'REPO_URL', short: 'u', long: 'repo-url', type: 'string', description: 'repository HTTPS URL' },
     { name: 'QUIET', short: 'q', long: 'quiet', type: 'boolean', description: 'suppress stdout logging' }
   ],
   description: `
@@ -28,6 +30,7 @@ module.exports = {
   examples: [
     '$ csv2sarif convert my.csv -p FWDSEC ' + '(output goes to stdout)'.grey,
     '$ csv2sarif convert my.csv -p FWDSEC -o report.sarif ' + '(output goes to file)'.grey,
+    '$ csv2sarif convert my.csv -p FWDSEC -r acme/widget ' + '(include repository name)'.grey,
     '$ csv2sarif convert my.csv -t template.json ' + '(use custom template)'.grey
   ],
   run: async (toolbox, args) => {
@@ -38,10 +41,14 @@ module.exports = {
     args.INPUT = path.resolve(path.normalize(args.INPUT))
 
     // Validate args and options.
+    if (!args.REPOSITORY) throw new Error('Please specify REPOSITORY in "owner/repository_name" format')
     if (!args.PROFILE && !args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && !fs.existsSync(path.join(profiles, `${args.PROFILE}.edge`))) throw new Error(`Profile not found: ${args.PROFILE}`)
     if (args.TEMPLATE && !fs.existsSync(args.TEMPLATE)) throw new Error(`Template not found: ${args.TEMPLATE}`)
+    if (args.REPOSITORY && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(args.REPOSITORY)) {
+      throw new Error('Repository must be in "owner/repository_name" format')
+    }
 
     // Read and parse the input CSV file.
     const input = fs.readFileSync(args.INPUT, 'utf8')
@@ -53,7 +60,11 @@ module.exports = {
     if (args.TEMPLATE) edge.mount(new URL('./', `file://${process.cwd()}/`))
 
     // Convert the CSV.
-    const text = await edge.render(args.PROFILE || args.TEMPLATE, { rows })
+    const text = await edge.render(args.PROFILE || args.TEMPLATE, {
+      rows,
+      repository: args.REPOSITORY,
+      repoUrl: args.REPO_URL || ''
+    })
     const output = JSON5.parse(text)
 
     // Display, or write, the output.
