@@ -11,7 +11,13 @@
           "product": "FWDSEC Penetration Testing Service",
           "informationUri": "https://forwardsecurity.com/penetration-testing-for-application-and-cloud/",
           "organization": "Forward Security Inc.",
-          "properties": {},
+          "properties": {
+            "repository": {
+              "type": "git",
+              "fullName": "{{ repository }}",
+              "url": "{{ repoUrl }}"
+            }
+          },
           "rules": [
 @let(index = 0)
 @each(row in rows)
