@@ -3,6 +3,7 @@ const path = require('node:path')
 const { parse } = require('csv-parse/sync')
 const { Edge } = require('edge.js')
 const JSON5 = require('json5')
+const { parseRepositoryFullName } = require('../utils/repository')
 module.exports = {
   summary: 'convert CSV to SARIF',
   args: {
@@ -17,7 +18,7 @@ module.exports = {
     { name: 'OUTPUT', short: 'o', long: 'output', type: 'string', description: 'output file name' },
     { name: 'PROFILE', short: 'p', long: 'profile', type: 'string', description: 'built-in profile to use for the conversion' },
     { name: 'TEMPLATE', short: 't', long: 'template', type: 'string', description: 'custom template to use for the conversion' },
-    { name: 'REPOSITORY', short: 'r', long: 'repository', type: 'string', description: 'repository name in owner/repository_name format' },
+    { name: 'REPOSITORY', short: 'r', long: 'repository', type: 'string', description: 'repository name in owner/name or owner/path/name format' },
     { name: 'REPO_URL', short: 'u', long: 'repo-url', type: 'string', description: 'repository HTTPS URL' },
     { name: 'QUIET', short: 'q', long: 'quiet', type: 'boolean', description: 'suppress stdout logging' }
   ],
@@ -41,14 +42,12 @@ module.exports = {
     args.INPUT = path.resolve(path.normalize(args.INPUT))
 
     // Validate args and options.
-    if (!args.REPOSITORY) throw new Error('Please specify REPOSITORY in "owner/repository_name" format')
+    if (!args.REPOSITORY) throw new Error('Please specify REPOSITORY in "owner/name" or "owner/path/name" format')
     if (!args.PROFILE && !args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && !fs.existsSync(path.join(profiles, `${args.PROFILE}.edge`))) throw new Error(`Profile not found: ${args.PROFILE}`)
     if (args.TEMPLATE && !fs.existsSync(args.TEMPLATE)) throw new Error(`Template not found: ${args.TEMPLATE}`)
-    if (args.REPOSITORY && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(args.REPOSITORY)) {
-      throw new Error('Repository must be in "owner/repository_name" format')
-    }
+    const parsedRepository = parseRepositoryFullName(args.REPOSITORY)
 
     // Read and parse the input CSV file.
     const input = fs.readFileSync(args.INPUT, 'utf8')
@@ -60,10 +59,17 @@ module.exports = {
     if (args.TEMPLATE) edge.mount(new URL('./', `file://${process.cwd()}/`))
 
     // Convert the CSV.
+    const repositoryOwner = parsedRepository.owner
+    const repositoryName = parsedRepository.name
+    const repositoryPath = parsedRepository.path
+
     const text = await edge.render(args.PROFILE || args.TEMPLATE, {
       rows,
-      repository: args.REPOSITORY,
-      repoUrl: args.REPO_URL || ''
+      repositoryOwner,
+      repositoryPath,
+      repositoryName,
+      repositoryFullName: parsedRepository.fullName,
+      repoUrl: args.REPO_URL ?? ''
     })
     const output = JSON5.parse(text)
 
