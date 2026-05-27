@@ -4,6 +4,90 @@ const { parse } = require('csv-parse/sync')
 const { Edge } = require('edge.js')
 const JSON5 = require('json5')
 const { parseRepositoryFullName } = require('../utils/repository')
+
+const DEFAULT_ASVS_VERSION = '4.0.3'
+
+const getFirstNonEmptyColumnValue = (rows, columnName) => {
+  for (const row of rows) {
+    const value = row?.[columnName]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  return ''
+}
+
+const resolveRepositoryFields = (args, rows) => {
+  const repositoryValue = args.REPOSITORY || getFirstNonEmptyColumnValue(rows, 'Repository')
+  if (!repositoryValue) {
+    throw new Error('Please specify REPOSITORY in "owner/name" or "owner/path/name" format or provide a non-empty "Repository" CSV column')
+  }
+
+  const parsedRepository = parseRepositoryFullName(repositoryValue)
+
+  return {
+    parsedRepository,
+    repoUrl: args.REPO_URL || getFirstNonEmptyColumnValue(rows, 'RepositoryURL') || ''
+  }
+}
+
+const normalizeAsvsLevel = (value) => {
+  if (typeof value !== 'string') return ''
+
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  const match = trimmed.match(/^L([123])$/i)
+  if (match) return `ASVS Level ${match[1]}`
+
+  const levelMatch = trimmed.match(/^ASVS Level ([123])$/i)
+  if (levelMatch) return `ASVS Level ${levelMatch[1]}`
+
+  return trimmed
+}
+
+const buildAsvsMapping = (row) => {
+  const requirementId = typeof row?.['ASVS ID'] === 'string' ? row['ASVS ID'].trim() : ''
+  if (!requirementId) return null
+
+  const categories = [
+    typeof row?.CATEGORY === 'string' ? row.CATEGORY.trim() : ''
+  ].filter(Boolean)
+
+  const complianceLevels = [
+    normalizeAsvsLevel(row?.['ASVS LEVEL'])
+  ].filter(Boolean)
+
+  return {
+    standard: {
+      id: 'ASVS',
+      version: DEFAULT_ASVS_VERSION
+    },
+    requirements: [
+      {
+        id: requirementId,
+        categories,
+        compliance_levels: complianceLevels
+      }
+    ]
+  }
+}
+
+const applyFwdsecResultMetadata = (output, rows) => {
+  const run = output?.runs?.[0]
+  if (!run || !Array.isArray(run.results)) return
+
+  const failedRows = rows.filter(row => row?.STATUS === 'FAILED')
+  run.results.forEach((result, index) => {
+    const mapping = buildAsvsMapping(failedRows[index])
+    if (!mapping) return
+
+    result.properties = {
+      ...(result.properties || {}),
+      EUREKA_ASVS_MAPPING: mapping
+    }
+  })
+}
+
 module.exports = {
   summary: 'convert CSV to SARIF',
   args: {
@@ -42,16 +126,15 @@ module.exports = {
     args.INPUT = path.resolve(path.normalize(args.INPUT))
 
     // Validate args and options.
-    if (!args.REPOSITORY) throw new Error('Please specify REPOSITORY in "owner/name" or "owner/path/name" format')
     if (!args.PROFILE && !args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && args.TEMPLATE) throw new Error('Please specify PROFILE or TEMPLATE to use')
     if (args.PROFILE && !fs.existsSync(path.join(profiles, `${args.PROFILE}.edge`))) throw new Error(`Profile not found: ${args.PROFILE}`)
     if (args.TEMPLATE && !fs.existsSync(args.TEMPLATE)) throw new Error(`Template not found: ${args.TEMPLATE}`)
-    const parsedRepository = parseRepositoryFullName(args.REPOSITORY)
 
     // Read and parse the input CSV file.
     const input = fs.readFileSync(args.INPUT, 'utf8')
     let rows = parse(input, { columns: true, skip_empty_lines: true })
+    const { parsedRepository, repoUrl } = resolveRepositoryFields(args, rows)
 
     // Prep the templating engine.
     const edge = Edge.create()
@@ -69,9 +152,10 @@ module.exports = {
       repositoryPath,
       repositoryName,
       repositoryFullName: parsedRepository.fullName,
-      repoUrl: args.REPO_URL ?? ''
+      repoUrl
     })
     const output = JSON5.parse(text)
+    if (args.PROFILE === 'fwdsec' || args.PROFILE === 'FWDSEC') applyFwdsecResultMetadata(output, rows)
 
     // Display, or write, the output.
     if (args.OUTPUT) fs.writeFileSync(args.OUTPUT, JSON.stringify(output))
