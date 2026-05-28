@@ -4,6 +4,10 @@ const { parse } = require('csv-parse/sync')
 const { Edge } = require('edge.js')
 const JSON5 = require('json5')
 const { parseRepositoryFullName } = require('../utils/repository')
+const {
+  applyFwdsecMarkdownDescriptions,
+  decorateRowsWithFwdsecMarkdown
+} = require('../utils/fwdsec/markdown_builder')
 
 const DEFAULT_ASVS_VERSION = '4.0.3'
 
@@ -88,6 +92,8 @@ const applyFwdsecResultMetadata = (output, rows) => {
   })
 }
 
+const isFwdsecProfile = (profile) => profile === 'fwdsec' || profile === 'FWDSEC'
+
 module.exports = {
   summary: 'convert CSV to SARIF',
   args: {
@@ -134,6 +140,7 @@ module.exports = {
     // Read and parse the input CSV file.
     const input = fs.readFileSync(args.INPUT, 'utf8')
     let rows = parse(input, { columns: true, skip_empty_lines: true })
+    if (isFwdsecProfile(args.PROFILE)) rows = decorateRowsWithFwdsecMarkdown(rows)
     const { parsedRepository, repoUrl } = resolveRepositoryFields(args, rows)
 
     // Prep the templating engine.
@@ -155,7 +162,10 @@ module.exports = {
       repoUrl
     })
     const output = JSON5.parse(text)
-    if (args.PROFILE === 'fwdsec' || args.PROFILE === 'FWDSEC') applyFwdsecResultMetadata(output, rows)
+    if (isFwdsecProfile(args.PROFILE)) {
+      applyFwdsecMarkdownDescriptions(output, rows)
+      applyFwdsecResultMetadata(output, rows)
+    }
 
     // Display, or write, the output.
     if (args.OUTPUT) fs.writeFileSync(args.OUTPUT, JSON.stringify(output))

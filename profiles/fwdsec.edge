@@ -19,14 +19,13 @@
     @if(index > 0)
     ,
     @end
-    @let(DESCRIPTION = `FAILED ASVS ${ row['ASVS ID'] }: ${ row['VERIFICATION REQUIREMENT'].replaceAll('\n', ' ') } TEST RESULTS: ${ row['TEST RESULTS'].replaceAll('\n', ' ') }${ row['STEPS TO REPRODUCE'] ? ' STEPS TO REPRODUCE: ' + row['STEPS TO REPRODUCE'].replaceAll('\n', ' ') : '' }`)
                 {
-                  "id": "{{ `${ row['CATEGORY'] } ${ row['ASVS ID'] }`.trim().toLowerCase().replace(/[^a-zA-Z0-9-\s\.]/g, '').replaceAll(/(\s)+/g, '-') }}",
+                  "id": "{{ row.__ruleId }}",
                   "shortDescription": {
-                    "text": "{{ row['TEST RESULTS'].replaceAll('\n', ' ') }}"
+                    "text": "{{ row.__shortDescription }}"
                   },
                   "fullDescription": {
-                    "text": "{{ DESCRIPTION }}",
+                    "text": "",
                   },
                   "help": {
                     "text": "FAILED ASVS {{ row['ASVS ID'] }}"
@@ -47,12 +46,11 @@
     @if(index > 0)
     ,
     @end
-    @let(DESCRIPTION = `FAILED ASVS ${ row['ASVS ID'] }: ${ row['VERIFICATION REQUIREMENT'].replaceAll('\n', ' ') } TEST RESULTS: ${ row['TEST RESULTS'].replaceAll('\n', ' ') }${ row['STEPS TO REPRODUCE'] ? ' STEPS TO REPRODUCE: ' + row['STEPS TO REPRODUCE'].replaceAll('\n', ' ') : '' }`)
             {
-              "ruleId": "{{ `${ row['CATEGORY'] } ${ row['ASVS ID'] }`.trim().toLowerCase().replace(/[^a-zA-Z0-9-\s\.]/g, '').replaceAll(/(\s)+/g, '-') }}",
+              "ruleId": "{{ row.__ruleId }}",
               "level": "{{ LEVELS[ row['SECURITY PRIORITY'].toLowerCase() ] }}",
               "message": {
-                "text": "{{ DESCRIPTION }}"
+                "text": ""
               },
               "locations": [
                 {
@@ -63,7 +61,7 @@
                     }
                   },
                   "message": {
-                    "text": "{{ DESCRIPTION }}"
+                    "text": ""
                   }
                 }
               ]
